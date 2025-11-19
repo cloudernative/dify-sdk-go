@@ -52,6 +52,14 @@ type ChatMessageStreamResponse struct {
 		LoopID                    string                     `json:"loop_id,omitempty"`
 		Data                      *ChatMessageStreamResponse `json:"data,omitempty"`
 	} `json:"data,omitempty"`
+	Metadata struct {
+		RetrieverResources []struct {
+			DocMetadata *struct {
+				Title string `json:"title"`
+				URL   string `json:"url"`
+			} `json:"doc_metadata"`
+		} `json:"retriever_resources"`
+	} `json:"metadata"`
 }
 
 type ChatMessageStreamChannelResponse struct {
