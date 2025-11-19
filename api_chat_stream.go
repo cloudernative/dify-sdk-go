@@ -10,6 +10,13 @@ import (
 	"net/http"
 )
 
+// ErrorResponse 定义服务器返回的错误响应格式
+type ErrorResponse struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+	Status  int    `json:"status"`
+}
+
 type ChatMessageStreamResponse struct {
 	Event          string `json:"event"`
 	TaskID         string `json:"task_id"`
@@ -92,25 +99,35 @@ func (api *API) chatMessagesStreamHandle(ctx context.Context, resp *http.Respons
 			}
 
 			if !bytes.HasPrefix(line, []byte("data:")) {
+				if bytes.HasPrefix(line, []byte("{")) {
+					// 检查是否是错误响应格式
+					var errorResp ErrorResponse
+					if err := json.Unmarshal(line, &errorResp); err == nil && errorResp.Code != "" {
+						streamChannel <- ChatMessageStreamChannelResponse{
+							Err: fmt.Errorf("server error: %s (code: %s, status: %d)", errorResp.Message, errorResp.Code, errorResp.Status),
+						}
+						return
+					}
+				}
 				continue
 			}
 			line = bytes.TrimPrefix(line, []byte("data:"))
 
-			var resp ChatMessageStreamChannelResponse
-			if err = json.Unmarshal(line, &resp); err != nil {
+			var streamResp ChatMessageStreamChannelResponse
+			if err = json.Unmarshal(line, &streamResp); err != nil {
 				streamChannel <- ChatMessageStreamChannelResponse{
 					Err: fmt.Errorf("error unmarshalling event: %w", err),
 				}
 				return
-			} else if resp.Event == "error" {
+			} else if streamResp.Event == "error" {
 				streamChannel <- ChatMessageStreamChannelResponse{
 					Err: errors.New("error streaming event: " + string(line)),
 				}
 				return
-			} else if resp.Event == "message" && resp.Answer == "" {
+			} else if streamResp.Event == "message" && streamResp.Answer == "" {
 				continue
 			}
-			streamChannel <- resp
+			streamChannel <- streamResp
 		}
 	}
 }
